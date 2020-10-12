@@ -1,14 +1,67 @@
+
+"""
+Created be Antonis Choustoulakis on Wed Aug 26 13:57:07 2020
+
+"""
+
+
+# Clearifications:
+
+    
+# Confusion Matrix and Performance Metrics:
+    # True negatives and true positives are samples that were correctly classified
+    # False negatives and false positives are samples that were incorrectly classified
+        # Legitimate Transactions Detected (True Negatives(TN) = pred no and actual no))
+        # Fraudulent Transactions Detected (True Positives(TP) = pred yes and actual yes))
+        # Fraudulent Transactions Missed (False Negatives(FN) = pred no and actual yes))
+        # Legitimate Transactions Incorrectly Detected (False Positives(FP) = pred yes/actual no))
+
+    
+    # Accuracy is the percentage of examples correctly classified (tp + tn) / (p + n))
+    # Precision is the percentage of predicted positives that were correctly classified  (tp / (tp + fp)
+        # A low precision score is indicative of a high number of false positives.
+    # Recall is the percentage of actual positives that were correctly classified (tp / (tp + fn))
+        # A low recall score is indicative of a high number of false negatives
+    # F1 score combines precision and recall of a class in one metric. (2 tp / (2 tp + fp + fn))
+    # AUC refers to the Area Under the Curve of a Receiver Operating Characteristic curve (ROC-AUC)
+        # This metric is equal to the probability that a classifier will rank a random positive sample higher than a random negative sample
+        # They provide an overly optimistic picture of the model skill on imbalanced data 
+        # This happens because the ROC curve is constructed using the number of true negatives in the 'False Positive Rate' calculation
+   
+
+# Suggestons:
+    # high recall + high precision : the class is perfectly handled by the model
+    # low recall + high precision : the model can’t detect the class well but is highly trustable when it does
+    # high recall + low precision : the class is well detected but the model also include points of other classes in it
+    # low recall + low precision : the class is poorly handled by the model
+
+
+# Why accuracy is ΝΟΤ such a good metric in our case and why f1 is needed - Due to the imbalanced data
+    # Accuracy is used when the True Positives and True negatives are more important while F1-score is used when the False Negatives and False Positives are crucial
+    # Accuracy can be used when the class distribution is similar while F1-score is a better metric when there are imbalanced classes
+    # In most real-life classification problems, imbalanced class distribution exists and thus F1-score is a better metric to evaluate our model on
+
+
+
+
+
+""" Import libraries and packages essential for the code """
+
+
 # Main Libraries for analysis
 
 import numpy as np # linear algebra
 import pandas as pd # data  processing, CSV file
-import csv # file reading and Writing
 import sys # system-spesific parameters and functions
-from sklearn import preprocessing # Standardization of datasets is a common requirement for many machine learning estimators implemented in scikit-learn; they might behave badly if the individual features do not more or less look like standard normally distributed data: Gaussian with zero mean and unit variance. The sklearn.preprocessing package provides several common utility functions and transformer classes to change raw feature vectors into a representation that is more suitable for the downstream estimators.
-from sklearn.preprocessing import StandardScaler, RobustScaler # Scale the feautres
+from sklearn.preprocessing import StandardScaler # Scale the feautres
 import imblearn # Handling Imballance data
 from sklearn.model_selection import train_test_split
 from imblearn.under_sampling import RandomUnderSampler # Resampling Technique
+# from imblearn.over_sampling import RandomOverSampler # Resampling Technique
+# from imblearn.over_sampling import SMOTE  # Resampling Technique
+# from imblearn.combine import SMOTETomek  # Resampling Technique
+# from imblearn.under_sampling import TomekLinks # Resampling Technique
+# from imblearn.over_sampling import ADASYN  # Resampling Technique
 
 
 # Classifiers and Modeling Libraries
@@ -16,7 +69,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 from sklearn import svm
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import AdaBoostClassifier   # isws na mn ton valw 
+
 
 
 # Features Importances - Selection Libraries
@@ -25,20 +78,19 @@ from sklearn.feature_selection import SelectFromModel # Meta-transformer for sel
 
 
 # Performance Metrics and Visualisations
-from sklearn import metrics
-from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
-from sklearn.metrics import classification_report
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import roc_curve
-
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+import time
 
 import matplotlib.pyplot as plt
-#matplotlib inline
-
+#%matplotlib inline
 import seaborn as sns # visualise random distributions. It uses matplotlb
-
 
 
 
@@ -85,13 +137,17 @@ dataset[['Time', 'Amount']].describe()
 # Check the percentages of fraudulent and non-fraudulent transactions
 majority, minority = np.bincount(dataset['Class'])
 total = majority + minority
+
+
+
 print('Examples:\n    Total: {}\n    Minority: {} ({:.2f}% of total)\n'.format(
     total, minority, 100 * minority / total))
 print(f'Percent of Non-Fraudulent Transactions(Majority) = {round(dataset["Class"].value_counts()[0]/len(dataset) * 100,2)}%') # 
 print(f'Percent of Fraudulent Transactions(Minority) = {round(dataset["Class"].value_counts()[1]/len(dataset) * 100,2)}%')
 
+
 # Observations:
-    # Only 492 (or 0.173%) of transaction are fraudulent. That means the data is highly unbalanced with respect with target variable Class.
+    # Only 492 (or 0.17%) of transaction are fraudulent. That means the data is highly unbalanced with respect with target variable Class.
     # Most of the transactions are legitimate. In case we use this data to predtict the frauds, our algorithms will overfit. There will be a bias towards the majority class and the accuracy of the models will be misleading. 
     # So, later on, we will balance the data to make the algorithms to produce reliable results.
 
@@ -107,6 +163,7 @@ fig = sns.heatmap(corr, annot=True, fmt="g", cmap='Set3', linewidths=0.3, lineco
 plt.title("Feature Correlation with Class", fontsize=18)
 plt.show()
 
+
 # Observations:
     # V17, V14, V12 and V10 are negatively correlated. Notice how the lower these values are, the more likely the end result will be a fraud transaction.
     # V2, V4, V11, and V19 are positively correlated. Notice how the higher these values are, the more likely the end result will be a fraud transaction.
@@ -117,37 +174,29 @@ plt.show()
 
 
 
-
 # Since most of our data has already been scaled we should scale the columns that are left to scale (Amount and Time)
-# RobustScaler is less prone to outliers.
-
-traindataset = dataset.copy()
+scaled_dataset = dataset.copy()
 
 std_scaler = StandardScaler()
-rob_scaler = RobustScaler()
 
-traindataset['scaled_amount'] = rob_scaler.fit_transform(traindataset['Amount'].values.reshape(-1,1))
-traindataset['scaled_time'] = rob_scaler.fit_transform(traindataset['Time'].values.reshape(-1,1))
+scaled_dataset ['scaled_amount'] = std_scaler.fit_transform(scaled_dataset ['Amount'].values.reshape(-1,1))
+scaled_dataset ['scaled_time'] = std_scaler.fit_transform(scaled_dataset ['Time'].values.reshape(-1,1))
 
-traindataset.drop(['Time','Amount'], axis=1, inplace=True)
-scaled_amount = traindataset['scaled_amount']
-scaled_time = traindataset['scaled_time']
+scaled_dataset .drop(['Time','Amount'], axis=1, inplace=True)
+scaled_amount = scaled_dataset ['scaled_amount']
+scaled_time = scaled_dataset ['scaled_time']
 
-traindataset.drop(['scaled_amount', 'scaled_time'], axis=1, inplace=True)
-traindataset.insert(0, 'scaled_amount', scaled_amount)
-traindataset.insert(1, 'scaled_time', scaled_time)
-print(traindataset.describe())
-
+scaled_dataset .drop(['scaled_amount', 'scaled_time'], axis=1, inplace=True)
+scaled_dataset .insert(0, 'scaled_amount', scaled_amount)
+scaled_dataset .insert(1, 'scaled_time', scaled_time)
+print(scaled_dataset.describe())
 
 
 
-###############################################################################
+##############################################################################
 
 
-
-
-
-###############################################################################
+##############################################################################
 
 
 
@@ -162,8 +211,8 @@ print(traindataset.describe())
 
 
 # Data Split for training 80:20
-X = traindataset.drop(['Class'], axis=1) # Features
-Y = traindataset['Class'] # Labels
+X = scaled_dataset.drop(['Class'], axis=1) # Features
+Y = scaled_dataset['Class'] # Labels
 # The tes_size is being chosen by general rule
 X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
 
@@ -172,17 +221,30 @@ print(X_train.shape, X_test.shape)
 
 
 
-# Resampling Technique - Balance the data - Handling imbalanced data Process
+
+
+
+# Resampling Technique - UNDERSAMPLING - Balance the data - Handling imbalanced data Process
 
 
 # We need ratio = 1 between the two classes
-undersample = RandomUnderSampler(sampling_strategy=1) 
+undersample = RandomUnderSampler(sampling_strategy=1, random_state=42) 
 X_trainundersam, y_trainundersam = undersample.fit_resample(X_train, y_train)
+
+
+"""
+# Normalisation
+# Normilise only the preprocessed dataset , and only the training. Scale the data to have a common range value.
+
+X_trainundersam = (X_trainundersam - X_trainundersam.min()) / (X_trainundersam.max() - X_trainundersam.min())
+"""
+
 # Returning to new training set # Concat. # Concatenate pandas objects along a particular axis with optional set logic along the other axes. Can also add a layer of hierarchical indexing on the concatenation axis, which may be useful if the labels are the same (or overlapping) on the passed axis number.
 undersamdataset = pd.concat([X_trainundersam, y_trainundersam.reindex(X_trainundersam.index)], axis=1)
 
+
 # equally distributed
-print('Distribution of the Classes in the subsample dataset')
+print('Distribution of the Classes in the Undersampling subsample dataset')
 print(undersamdataset['Class'].value_counts()/len(undersamdataset))
 
 # Check the difference
@@ -190,19 +252,161 @@ print(undersamdataset)
 print(dataset) 
 
 
+# Separate undersampled data into X and y sets - split features and labels 
+X_trainnew = undersamdataset.drop(['Class'], axis=1)  # Features
+Y_trainnew = undersamdataset["Class"] # Mono ta lables
+
+
+
+
+"""
+# Resampling Technique - OVERSAMPLING - Balance the data - Handling imbalanced data Process
+
+ros = RandomOverSampler(sampling_strategy=1, random_state=42)
+X_trainoversam, y_trainoversam = ros.fit_resample(X_train, y_train)
+
+
+
+# Returning to new training set # Concat. # Concatenate pandas objects along a particular axis with optional set logic along the other axes. Can also add a layer of hierarchical indexing on the concatenation axis, which may be useful if the labels are the same (or overlapping) on the passed axis number.
+oversamdataset = pd.concat([X_trainoversam, y_trainoversam.reindex(X_trainoversam.index)], axis=1)
+
+
+
+# check the distribution
+print('Distribution of the Classes in the oversampling subsample dataset')
+print(oversamdataset['Class'].value_counts()/len(oversamdataset))
+
+# check the difference
+print(oversamdataset)
+print(dataset)
+
+
+
+
+
+# Resampling Technique - SMOTE - Balance the data - Handling imbalanced data Process
+
+
+sm = SMOTE(random_state=42)
+X_trainsmote, y_trainsmote = sm.fit_resample(X_train, y_train)
+
+# check the distribution
+print('After OverSampling, the shape of train_X: {}'.format(X_trainsmote.shape)) 
+print('After OverSampling, the shape of train_y: {} \n'.format(y_trainsmote.shape)) 
+print("After OverSampling, counts of label '1': {}".format(sum(y_trainsmote == 1))) 
+print("After OverSampling, counts of label '0': {}".format(sum(y_trainsmote == 0))) 
+
+
+
+# Returning to new training set # Concat. # Concatenate pandas objects along a particular axis with optional set logic along the other axes. Can also add a layer of hierarchical indexing on the concatenation axis, which may be useful if the labels are the same (or overlapping) on the passed axis number.
+smote = pd.concat([pd.DataFrame(X_trainsmote), pd.DataFrame(y_trainsmote)], axis=1)
+
+
+# equally distributed
+print('Distribution of the Classes in the SMOTE subsample dataset')
+print(smote['Class'].value_counts()/len(smote))
+
+# check the difference
+print(smote)
+print(dataset)
+
+
+
+# Separate SMOTE data into X and y sets - split features and labels 
+X_trainnew = smote.drop(['Class'], axis=1)  # Features
+print(X_trainnew)
+Y_trainnew = smote["Class"] # Mono ta lables
+print(Y_trainnew)
+
+
+
+
+
+# Resampling Technique - SMOTETomek - Balance the data - Handling imbalanced data Process
+
+
+smtomek = SMOTETomek()
+X_smtomek, y_smtomek = smtomek.fit_sample(X_train, y_train)
+
+
+
+# Returning to new training set # Concat. # Concatenate pandas objects along a particular axis with optional set logic along the other axes. Can also add a layer of hierarchical indexing on the concatenation axis, which may be useful if the labels are the same (or overlapping) on the passed axis number.
+smotetomek = pd.concat([pd.DataFrame(X_smtomek), pd.DataFrame(y_smtomek)], axis=1)
+
+#check the distribution
+print('Distribution of the Classes in the SMOTETomek subsample dataset')
+print(smotetomek['Class'].value_counts()/len(smotetomek))
+
+# check the difference
+print(smotetomek)
+print(dataset)
+
+
+# Separate undersampled data into X and y sets - lit labels and features - Getting the features and labels(train and labesl) - Upodhlwnw ta features kai labels opou me auta tha ekpaideusw to modelo mou
+X_trainnew = smotetomek.drop(['Class'], axis=1)  # Features
+print(X_trainnew)
+Y_trainnew = smotetomek["Class"] # Mono ta lables
+print(Y_trainnew)
+
+
+
+
+
+# Resampling Technique - Balance the data - Handling imbalanced data Process
+# TomekLinks undersampling. Exist if the two samples are the nearest neighbors of each other. 
+# Only remove samples form the majority class
+
+
+tl = TomekLinks()
+X_tl, y_tl  = tl.fit_sample(X_train, y_train)
+
+
+
+# Returning to new training set # Concat. # Concatenate pandas objects along a particular axis with optional set logic along the other axes. Can also add a layer of hierarchical indexing on the concatenation axis, which may be useful if the labels are the same (or overlapping) on the passed axis number.
+tldataset = pd.concat([X_tl, y_tl.reindex(X_tl.index)], axis=1)
+
+# Check the distribution
+print('Distribution of the Classes in the TomekLinks subsample dataset')
+print(tldataset['Class'].value_counts()/len(tldataset))
+
+# Check the difference
+print(tldataset) 
+print(dataset) 
+
 
 # Separate undersampled data into X and y sets - split features and labels 
-Xnew = undersamdataset.drop(['Class'], axis=1)  # Features
-print(Xnew)
-Ynew = undersamdataset["Class"] # Mono ta lables
-print(Ynew)
+X_trainnew = tldataset.drop(['Class'], axis=1)  # Features
+Y_trainnew = tldataset["Class"] # Mono ta lables
 
 
 
+
+
+# Resampling Technique - ADASYN - Balance the data - Handling imbalanced data Process
+
+ada = ADASYN(sampling_strategy=1, random_state=42)
+X_trainadasyn, y_trainadasyn = ada.fit_resample(X_train, y_train)
+
+
+
+# Returning to new training set # Concat. # Concatenate pandas objects along a particular axis with optional set logic along the other axes. Can also add a layer of hierarchical indexing on the concatenation axis, which may be useful if the labels are the same (or overlapping) on the passed axis number.
+adasyndataset = pd.concat([X_trainadasyn, y_trainadasyn.reindex(X_trainadasyn.index)], axis=1)
+
+
+# check the distribution
+print('Distribution of the Classes in the ADASYN subsample dataset')
+print(adasyndataset['Class'].value_counts()/len(adasyndataset))
+
+
+# Check the difference
+print(adasyndataset) 
+print(dataset) 
+
+
+# Separate undersampled data into X and y sets - split features and labels 
+X_trainnew = adasyndataset.drop(['Class'], axis=1)  # Features
+Y_trainnew = adasyndataset["Class"] # Mono ta lables
 """
-Mporw edw na kanw standardize an kanw
-"""
-
 
 ##############################################################################
 
@@ -218,12 +422,12 @@ Mporw edw na kanw standardize an kanw
 # Selecting features with the ExtraTressClassifier and SelectFromModel.
 # Note: ExtraTreesClassifier tends to be biased. But This class implements a meta estimator that fits a number of randomized decision trees (a.k.a. extra-trees) on various sub-samples of the dataset and uses averaging to improve the predictive accuracy and control over-fitting.
 
-etcmodel = ExtraTreesClassifier(n_estimators=100, random_state=42)
-etcmodel.fit(Xnew, Ynew)
-feat_labels = Xnew.columns.values
-print(feat_labels)
+etcmodel = ExtraTreesClassifier(n_estimators=100, criterion = 'entropy', random_state=42)
+etcmodel.fit(X_trainnew, Y_trainnew)
+feat_labels = X_trainnew.columns.values
+#print(feat_labels)
 feat_import = etcmodel.feature_importances_
-print(feat_import)
+#print(feat_import)
 
 importances = etcmodel.feature_importances_
 std = np.std([tree.feature_importances_ for tree in etcmodel.estimators_],
@@ -233,63 +437,68 @@ indices = np.argsort(importances)[::-1]
 
 # Print the feature ranking
 print("Feature ranking:")
-for f in range(Xnew.shape[1]):
+for f in range(X_trainnew.shape[1]):
     print("%d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
 
 
 # Plot the impurity-based feature importances of the ExtraTreesClassifier
 plt.figure()
+plt.xlabel("Features")
+plt.ylabel("Features Importance")
 plt.title("Feature importances")
-plt.bar(range(X.shape[1]), importances[indices],
+plt.bar(range(X_trainnew.shape[1]), importances[indices],
         color="r", yerr=std[indices], align="center")
-plt.xticks(range(X.shape[1]), indices)
-plt.xlim([-1, X.shape[1]])
+plt.xticks(range(X_trainnew.shape[1]), indices)
+plt.xlim([-1, X_trainnew.shape[1]])
 plt.show()
+
 
 
 # Select the most important Values
 # We will use SelectFromModel, using a threshold to extract the most important features
 # Setting the threshold for which variables to keep based on their variance
 
+
+
 sfm = SelectFromModel(etcmodel, threshold=0.03, prefit=True)
-print('Number of features before selection: {}'.format(Xnew.shape[1]))
+print('Number of features before selection: {}'.format(X_trainnew.shape[1]))
 # Number of features before selection: 30
 
 # Throwing away all the variables which fall below the threshold level␣,→specified above
-n_features = sfm.transform(Xnew).shape[1]
+n_features = sfm.transform(X_trainnew).shape[1]
 print('Number of features after selection: {}'.format(n_features))
-# Number of features after selection: 9
+# Number of features after selection: 10
 
+#Create a kist
 selected_features = list(feat_labels[sfm.get_support()])
 
+
+
+
 # split features and labels adding only the selected features
-Xnew_2 = undersamdataset[selected_features]
-X_test2 = X_test[selected_features]
+X_trainfinal = undersamdataset[selected_features]
+X_testfinal = X_test[selected_features]
+
 
 #check the difference
-print(Xnew_2)
-print(Xnew)
+print(X_trainfinal)
+print(X_trainnew)
 
 # The training and testing should have the same features
-print(Xnew_2.columns)
-print(X_test2.columns)
-
-
-
-
-
-
-##############################################################################
-
-
+print(X_trainfinal.columns)
+print(X_testfinal.columns)
+#check the difference
+print(X_testfinal)
 
 
 
 ##############################################################################
 
-# ta test dataset legontai X_test2, y_test, 
-# ta train dataset legontai Xnew_2, Ynew
 
+##############################################################################
+
+# Train datasets: X_trainfinal, Y_trainnew
+# Test datasets:  X_testfinal, y_test
 
 
 
@@ -297,58 +506,49 @@ print(X_test2.columns)
 
 
 
+
 # Build the Logistic Regression model
 
-logreg = LogisticRegression()
-logreg.fit(Xnew_2, Ynew)
-y_predLR = logreg.predict(X_test2)
+# Build and calculate the classifier's process
+start = time.time()
+clfLR = LogisticRegression()
+clfLR.fit(X_trainfinal, Y_trainnew)
+y_predLR = clfLR.predict(X_testfinal)
+end = time.time()
+print("This is the time of LR = ", end - start)
 
 
 # Performance Metrics
-acc_LR = accuracy_score(y_test, y_predLR)
-print('Accuracy of Logistic Regression classifier on test set: {:.2f}'.format(acc_LR))
+print('Logistic Regression Metrics-Score:')
+#Confusion Matrix
 confusion_matrix1 = confusion_matrix(y_test, y_predLR)
 print("	", "pred no", "pred yes")
 print("actual no", confusion_matrix1[0])  
 print("actual yes", confusion_matrix1[1])
 
+# accuracy: (tp + tn) / (p + n)
+accuracy_LR = accuracy_score(y_test, y_predLR)
+print('Accuracy: %f' % accuracy_LR)
+
+# precision tp / (tp + fp)
+precision_LR = precision_score(y_test, y_predLR)
+print('Precision: %f' % precision_LR)
+
+# recall: tp / (tp + fn)
+recall_LR = recall_score(y_test, y_predLR)
+print('Recall: %f' % recall_LR)
+
+# f1: 2 tp / (2 tp + fp + fn)
+f1_LR = f1_score(y_test, y_predLR)
+print('F1 score: %f' % f1_LR)
+
+#AUC_ROC
+auc_LR = roc_auc_score(y_test, y_predLR)
+print('ROC_AUC score: ', roc_auc_score(y_test, y_predLR))
 
 # Classification report
 labels = ['No Fraud', 'Fraud']
-print ('LogisticRegression:')
 print(classification_report(y_test, y_predLR, target_names=labels))
-
-# ROC_AUC
-aucLR = roc_auc_score(y_test, y_predLR)
-print('Logistic Regression ROC_AUC Score: ', roc_auc_score(y_test, y_predLR))
-
-
-
-
-
-# Build RandomForest model
-
-clfRF = RandomForestClassifier(n_estimators=100, random_state=42)
-clfRF.fit(Xnew_2, Ynew) 
-y_predRF = clfRF.predict(X_test2)
-
-
-# Performance Metrics
-acc_rf = accuracy_score(y_test, y_predRF)
-print('Accuracy of Random Forest classifier on test set: {:.2f}'.format(acc_rf))
-confusion_matrix2 = confusion_matrix(y_test, y_predRF)
-print("	", "pred no", "pred yes")
-print("actual no", confusion_matrix2[0])  
-print("actual yes", confusion_matrix2[1])
-
-# Classification report
-labels = ['No Fraud', 'Fraud']
-print ('RandomForest:')
-print(classification_report(y_test, y_predRF, target_names=labels))
-
-# ROC AUC
-aucRF = roc_auc_score(y_test, y_predRF)
-print('RandomForests ROC_AUC Score: ', roc_auc_score(y_test, y_predRF))
 
 
 
@@ -356,27 +556,93 @@ print('RandomForests ROC_AUC Score: ', roc_auc_score(y_test, y_predRF))
 
 # Built Naive Bayes model
 
+# Build and calculate the classifier's process
+start = time.time()
 clfNB = GaussianNB()
-clfNB.fit(Xnew_2, Ynew) 
-y_predNB = clfNB.predict(X_test2)
+clfNB.fit(X_trainfinal, Y_trainnew) 
+y_predNB = clfNB.predict(X_testfinal)
+end = time.time()
+print("This is the time of NB = ", end - start)
 
 
 # Performance Metrics
-acc_nb = accuracy_score(y_test, y_predNB)
-print('Accuracy of Naive Bayes classifier on test set: {:.2f}'.format(acc_nb))
-confusion_matrix3 = confusion_matrix(y_test, y_predNB)
+print('Naive Bayes Metrics-Score:')
+#Confusion Matrix
+confusion_matrix2 = confusion_matrix(y_test, y_predNB)
+print("	", "pred no", "pred yes")
+print("actual no", confusion_matrix2[0])  
+print("actual yes", confusion_matrix2[1])
+
+# accuracy: (tp + tn) / (p + n)
+accuracy_NB = accuracy_score(y_test, y_predNB)
+print('Accuracy: %f' % accuracy_NB)
+
+# precision tp / (tp + fp)
+precision_NB = precision_score(y_test, y_predNB)
+print('Precision: %f' % precision_NB)
+
+# recall: tp / (tp + fn)
+recall_NB = recall_score(y_test, y_predNB)
+print('Recall: %f' % recall_NB)
+
+# f1: 2 tp / (2 tp + fp + fn)
+f1_NB = f1_score(y_test, y_predNB)
+print('F1 score: %f' % f1_NB)
+
+#AUC_ROC
+auc_NB = roc_auc_score(y_test, y_predNB)
+print('ROC_AUC score: ', roc_auc_score(y_test, y_predNB))
+
+# Classification report
+labels = ['No Fraud', 'Fraud']
+print(classification_report(y_test, y_predNB, target_names=labels))
+
+
+
+
+
+# Build Random Forest model
+
+# Build and calculate the classifier's process
+start = time.time()
+clfRF = RandomForestClassifier(n_estimators=100, random_state=42)
+clfRF.fit(X_trainfinal, Y_trainnew) 
+y_predRF = clfRF.predict(X_testfinal)
+end = time.time()
+print("This is the time of RF = ", end - start)
+
+
+# Performance Metrics
+print('Random Forests Metrics-Score:')
+#Confusion Matrix
+confusion_matrix3 = confusion_matrix(y_test, y_predRF)
 print("	", "pred no", "pred yes")
 print("actual no", confusion_matrix3[0])  
 print("actual yes", confusion_matrix3[1])
 
+# accuracy: (tp + tn) / (p + n)
+accuracy_RF = accuracy_score(y_test, y_predRF)
+print('Accuracy: %f' % accuracy_RF)
+
+# precision tp / (tp + fp)
+precision_RF = precision_score(y_test, y_predRF)
+print('Precision: %f' % precision_RF)
+
+# recall: tp / (tp + fn)
+recall_RF = recall_score(y_test, y_predRF)
+print('Recall: %f' % recall_RF)
+
+# f1: 2 tp / (2 tp + fp + fn)
+f1_RF = f1_score(y_test, y_predRF)
+print('F1 score: %f' % f1_RF)
+
+#AUC_ROC
+auc_RF = roc_auc_score(y_test, y_predRF)
+print('ROC_AUC score: ', roc_auc_score(y_test, y_predRF))
+
 # Classification report
 labels = ['No Fraud', 'Fraud']
-print ('Naive Bayes:')
-print(classification_report(y_test, y_predNB, target_names=labels))
-
-# ROC AUC
-aucNB = roc_auc_score(y_test, y_predNB)
-print('Naive Bayes ROC_AUC Score: ', roc_auc_score(y_test, y_predNB))
+print(classification_report(y_test, y_predRF, target_names=labels))
 
 
 
@@ -384,82 +650,72 @@ print('Naive Bayes ROC_AUC Score: ', roc_auc_score(y_test, y_predNB))
 
 # Build the Support Vector Machines model
 
+# Build and calculate the classifier's process
+start = time.time()
 clfSVM = svm.SVC()
-clfSVM.fit(Xnew_2, Ynew)  
-y_predSVM = clfSVM.predict(X_test2)
-
+clfSVM.fit(X_trainfinal, Y_trainnew)  
+y_predSVM = clfSVM.predict(X_testfinal)
+end = time.time()
+print("This is the time of SVM = ", end - start)
 
 # Performance Metrics
-acc_svm = accuracy_score(y_test, y_predSVM)
-print('Accuracy of SVM classifier on test set: {:.2f}'.format(acc_svm))
+print('Support Vector Machines Metrics-Score:')
+#Confusion Matrix
 confusion_matrix4 = confusion_matrix(y_test, y_predSVM)
 print("	", "pred no", "pred yes")
 print("actual no", confusion_matrix4[0])  
 print("actual yes", confusion_matrix4[1])
 
+# accuracy: (tp + tn) / (p + n)
+accuracy_SVM = accuracy_score(y_test, y_predSVM)
+print('Accuracy: %f' % accuracy_SVM)
+
+# precision tp / (tp + fp)
+precision_SVM = precision_score(y_test, y_predSVM)
+print('Precision: %f' % precision_SVM)
+
+#sys.exit()
+# recall: tp / (tp + fn)
+recall_SVM = recall_score(y_test, y_predSVM)
+print('Recall: %f' % recall_SVM)
+
+# f1: 2 tp / (2 tp + fp + fn)
+f1_SVM = f1_score(y_test, y_predSVM)
+print('F1 score: %f' % f1_SVM)
+
+#AUC_ROC
+auc_SVM = roc_auc_score(y_test, y_predSVM)
+print('ROC_AUC score: ', roc_auc_score(y_test, y_predSVM))
+
 # Classification report
 labels = ['No Fraud', 'Fraud']
-print ('SVM:')
 print(classification_report(y_test, y_predSVM, target_names=labels))
 
-# ROC AUC
-aucSVM = roc_auc_score(y_test, y_predSVM)
-print('Support Vestor Machines ROC_AUC Score: ', roc_auc_score(y_test, y_predSVM))
 
 
 
 
 
-# Build the AdaBoost model
-
-ABclf = AdaBoostClassifier(n_estimators=100, random_state=42)
-ABclf.fit(Xnew_2, Ynew)
-y_predAB = ABclf.predict(X_test2)
-
-
-# Performance Metrics
-acc_AB = accuracy_score(y_test, y_predAB)
-print('Accuracy of AdaBoost classifier on test set: {:.2f}'.format(acc_AB))
-confusion_matrix4 = confusion_matrix(y_test, y_predAB)
-print("	", "pred no", "pred yes")
-print("actual no", confusion_matrix4[0])  
-print("actual yes", confusion_matrix4[1])
-
-# Classification report
-labels = ['No Fraud', 'Fraud']
-print ('AdaBoost:')
-print(classification_report(y_test, y_predAB, target_names=labels))
-
-# ROC AUC
-aucAB = roc_auc_score(y_test, y_predAB)
-print('AdaBoost Classifier ROC_AUC Score: ', roc_auc_score(y_test, y_predAB))
-
-
-
-
-
-# All ROC_AUC 
+# All ROC_AUC scores
 
 print('Logistic Regression ROC_AUC Score: ', roc_auc_score(y_test, y_predLR))
-print('RandomForests ROC_AUC Score: ', roc_auc_score(y_test, y_predRF))
+print('Random Forests ROC_AUC Score: ', roc_auc_score(y_test, y_predRF))
 print('Naive Bayes ROC_AUC Score : ', roc_auc_score(y_test, y_predNB))
-print('Support Vestor Machines ROC_AUC Score: ', roc_auc_score(y_test, y_predSVM))
-print('AdaBoost Classifier ROC_AUC Score: ', roc_auc_score(y_test, y_predAB))
+print('Support Vector Machines ROC_AUC Score: ', roc_auc_score(y_test, y_predSVM))
 
 log_fpr, log_tpr, log_thresold = roc_curve(y_test, y_predLR)
 rf_fpr, rf_tpr, rf_threshold = roc_curve(y_test, y_predRF)
 nb_fpr, nb_tpr, nb_threshold = roc_curve(y_test, y_predNB)
 svm_fpr, svm_tpr, svm_threshold = roc_curve(y_test, y_predSVM)
-ab_fpr, ab_tpr, ab_threshold = roc_curve(y_test, y_predAB)
+#ab_fpr, ab_tpr, ab_threshold = roc_curve(y_test, y_predAB)
 
-def graph_roc_curve_multiple(log_fpr, log_tpr, rf_fpr, rf_tpr, nb_fpr, nb_tpr, svm_fpr, svm_tpr, ab_fpr, ab_tpr):
+def graph_roc_curve_multiple(log_fpr, log_tpr, rf_fpr, rf_tpr, nb_fpr, nb_tpr, svm_fpr, svm_tpr):
     plt.figure(figsize=(16,8))
-    plt.title('ROC Curve \n Logistic Regression has the highest score', fontsize=18)
-    plt.plot(log_fpr, log_tpr, label='Logistic Regression Classifier Score: {:.4f}'.format(roc_auc_score(y_test, y_predLR)))
+    plt.title('ROC Curve \n Random Forests have the highest score', fontsize=18)
+    plt.plot(log_fpr, log_tpr, label='Logistic Regression Score: {:.4f}'.format(roc_auc_score(y_test, y_predLR)))
     plt.plot(rf_fpr, rf_tpr, label='Random Forests Score: {:.4f}'.format(roc_auc_score(y_test, y_predRF)))
     plt.plot(nb_fpr, nb_tpr, label='Naive Bayes Score: {:.4f}'.format(roc_auc_score(y_test, y_predNB)))
-    plt.plot(svm_fpr, svm_tpr, label='Support Vector MAchines Score: {:.4f}'.format(roc_auc_score(y_test, y_predSVM)))
-    plt.plot(ab_fpr, ab_tpr, label='AdaBoost Classifier Score: {:.4f}'.format(roc_auc_score(y_test, y_predAB)))
+    plt.plot(svm_fpr, svm_tpr, label='Support Vector Machines Score: {:.4f}'.format(roc_auc_score(y_test, y_predSVM)))
     plt.plot([0, 1], [0, 1], 'k--')
     plt.axis([-0.01, 1, 0, 1])
     plt.xlabel('False Positive Rate', fontsize=16)
@@ -469,5 +725,5 @@ def graph_roc_curve_multiple(log_fpr, log_tpr, rf_fpr, rf_tpr, nb_fpr, nb_tpr, s
                 )
     plt.legend()
 
-graph_roc_curve_multiple(log_fpr, log_tpr, rf_fpr, rf_tpr, nb_fpr, nb_tpr, svm_fpr, svm_tpr, ab_fpr, ab_tpr)
+graph_roc_curve_multiple(log_fpr, log_tpr, rf_fpr, rf_tpr, nb_fpr, nb_tpr, svm_fpr, svm_tpr)
 plt.show()
